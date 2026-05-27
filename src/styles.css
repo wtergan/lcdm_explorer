@@ -185,6 +185,17 @@ a:focus-visible {
   line-height: 1.6;
 }
 
+.guide-trigger {
+  margin-top: var(--space-lg);
+  border: 1px solid var(--line);
+  padding: 0.65rem 0.8rem;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .viewer-stage {
   position: relative;
   display: grid;
@@ -263,6 +274,173 @@ a:focus-visible {
   font-size: 0.72rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.interpretation-panel {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  bottom: 3.6rem;
+  z-index: 2;
+  width: min(22rem, calc(100% - 2rem));
+  overflow: auto;
+  border: 1px solid var(--line);
+  padding: var(--space-lg);
+  background: color-mix(in oklch, var(--ink-1) 96%, transparent);
+  box-shadow: 0 1.5rem 3.5rem oklch(2% 0.01 250 / 0.5);
+}
+
+.panel-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.panel-close {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.73rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.panel-tabs {
+  display: flex;
+  gap: var(--space-lg);
+  margin: var(--space-sm) 0 var(--space-lg);
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-sm) 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.panel-tabs button.selected {
+  border-color: var(--teal);
+  color: var(--text);
+}
+
+.panel-content h2 {
+  margin: 0 0 var(--space-sm);
+  font-family: "Chivo", sans-serif;
+  font-size: 1.22rem;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+
+.panel-content p {
+  margin: 0 0 var(--space-lg);
+  color: var(--muted);
+  font-size: 0.83rem;
+  line-height: 1.62;
+}
+
+.density-key {
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-lg);
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.density-key li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.density-key li::before {
+  width: 2.4rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  content: "";
+}
+
+.density-key .void::before {
+  background: var(--violet);
+}
+
+.density-key .filament::before {
+  background: var(--teal);
+}
+
+.density-key .knot::before {
+  background: var(--knot);
+}
+
+.method-note {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-lg);
+}
+
+.diagnostic-plot {
+  margin: var(--space-xl) 0;
+}
+
+.diagnostic-plot svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.plot-grid {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 0.4;
+}
+
+.plot-line {
+  fill: none;
+  stroke: var(--teal);
+  stroke-width: 1.2;
+}
+
+.diagnostic-plot circle {
+  fill: var(--quiet);
+}
+
+.diagnostic-plot circle.active {
+  fill: var(--knot);
+}
+
+.diagnostic-plot figcaption {
+  margin-top: var(--space-sm);
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.diagnostic-plot strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.dataset-facts {
+  display: flex;
+  gap: var(--space-xl);
+  margin: 0;
+}
+
+.dataset-facts dt {
+  margin-bottom: var(--space-xs);
+  color: var(--quiet);
+  font-size: 0.67rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dataset-facts dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.8rem;
 }
 
 .frame-rail ol {

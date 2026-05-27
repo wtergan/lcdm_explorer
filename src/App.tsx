@@ -11,6 +11,10 @@ import {
   loadReferenceDataset,
   type ReferenceDataset,
 } from "./data/referenceDataset";
+import {
+  InterpretationPanel,
+  type InterpretationTab,
+} from "./explore/InterpretationPanel";
 const DensityVolumeViewer = lazy(async () => {
   const module = await import("./viewer/DensityVolumeViewer");
   return { default: module.DensityVolumeViewer };
@@ -31,6 +35,8 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
   const [frameIndex, setFrameIndex] = useState(Math.min(3, dataset.frames.length - 1));
   const [isPlaying, setIsPlaying] = useState(false);
   const [resetViewToken, setResetViewToken] = useState(0);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [interpretationTab, setInterpretationTab] = useState<InterpretationTab>("guide");
   const selectedFrame = dataset.frames[frameIndex];
 
   useEffect(() => {
@@ -76,6 +82,9 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
           <p className="boundary">
             Educational model playback, not a precision cosmology prediction.
           </p>
+          <button className="guide-trigger" type="button" onClick={() => setIsGuideOpen(true)}>
+            Open field guide
+          </button>
         </aside>
 
         <section className="viewer-stage" aria-label="Interactive density volume">
@@ -92,6 +101,15 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
               Reset view
             </button>
           </div>
+          {isGuideOpen ? (
+            <InterpretationPanel
+              dataset={dataset}
+              frameIndex={frameIndex}
+              tab={interpretationTab}
+              onTabChange={setInterpretationTab}
+              onClose={() => setIsGuideOpen(false)}
+            />
+          ) : null}
         </section>
 
         <aside className="frame-rail" aria-label="Reference stages">
