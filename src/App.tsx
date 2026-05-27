@@ -1,16 +1,20 @@
 /**
  * Explore-first application shell for the LCDM educational exhibit.
  *
- * This surface communicates the provenance and mode boundary before the
- * density-volume renderer is introduced. It owns loading and failure states,
- * while rendering modules remain separate future collaborators.
+ * This surface communicates the provenance and mode boundary around the
+ * density-volume renderer. It owns dataset and timeline state while the
+ * renderer module owns graphics resources and interaction cleanup.
  */
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 
 import {
   loadReferenceDataset,
   type ReferenceDataset,
 } from "./data/referenceDataset";
+const DensityVolumeViewer = lazy(async () => {
+  const module = await import("./viewer/DensityVolumeViewer");
+  return { default: module.DensityVolumeViewer };
+});
 
 type DatasetState =
   | { status: "loading" }
@@ -24,8 +28,20 @@ export interface AppProps {
 const manifestUrl = "/datasets/gallery_128/manifest.json";
 
 function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
-  const selectedFrame = dataset.frames[Math.min(3, dataset.frames.length - 1)];
-  const resolution = dataset.volume.dimensions[0];
+  const [frameIndex, setFrameIndex] = useState(Math.min(3, dataset.frames.length - 1));
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [resetViewToken, setResetViewToken] = useState(0);
+  const selectedFrame = dataset.frames[frameIndex];
+
+  useEffect(() => {
+    if (!isPlaying || dataset.frames.length <= 1) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setFrameIndex((current) => (current + 1) % dataset.frames.length);
+    }, 1300);
+    return () => window.clearInterval(timer);
+  }, [dataset.frames.length, isPlaying]);
 
   return (
     <main className="exhibit-shell">
@@ -62,22 +78,19 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
           </p>
         </aside>
 
-        <section className="viewer-stage" aria-label="Density volume preparation">
-          <div className="viewer-grid" aria-hidden="true">
-            <div className="wire-volume">
-              <span />
-              <span />
-              <span />
-            </div>
-          </div>
-          <div className="stage-copy">
-            <p className="eyebrow">Reference Dataset Ready</p>
-            <h1>Structure formation, prepared for interactive viewing.</h1>
-            <p>
-              Five validated density volumes are available in a compact{" "}
-              <strong>{resolution}³</strong> export. The WebGL2 volume viewer is
-              the next verified construction step.
-            </p>
+        <section className="viewer-stage" aria-label="Interactive density volume">
+          <Suspense fallback={<p className="viewer-loading">Preparing viewer...</p>}>
+            <DensityVolumeViewer
+              dataset={dataset}
+              frameIndex={frameIndex}
+              resetViewToken={resetViewToken}
+            />
+          </Suspense>
+          <div className="interaction-bar">
+            <p className="interaction-hint">Drag to orbit / scroll to zoom</p>
+            <button className="reset-view" type="button" onClick={() => setResetViewToken((token) => token + 1)}>
+              Reset view
+            </button>
           </div>
         </section>
 
@@ -96,17 +109,44 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
       </section>
 
       <footer className="timeline-shell">
-        <button className="play" type="button" disabled aria-label="Playback available with viewer">
-          <span aria-hidden="true">▶</span>
+        <button
+          className="play"
+          type="button"
+          aria-label={isPlaying ? "Pause playback" : "Play evolution"}
+          onClick={() => setIsPlaying((playing) => !playing)}
+        >
+          <span aria-hidden="true">{isPlaying ? "||" : ">"}</span>
+        </button>
+        <button
+          className="stage-step"
+          type="button"
+          aria-label="Previous stage"
+          onClick={() =>
+            setFrameIndex((current) => (current - 1 + dataset.frames.length) % dataset.frames.length)
+          }
+        >
+          {"<"}
         </button>
         <div className="timeline-content">
           <p className="eyebrow">Evolution Timeline</p>
-          <div className="track" aria-hidden="true">
-            {dataset.frames.map((frame) => (
-              <span key={frame.step} className={frame.index === selectedFrame.index ? "current" : ""} />
-            ))}
-          </div>
+          <input
+            aria-label="Cosmic time frame"
+            className="timeline-range"
+            type="range"
+            min={0}
+            max={dataset.frames.length - 1}
+            value={frameIndex}
+            onChange={(event) => setFrameIndex(Number(event.target.value))}
+          />
         </div>
+        <button
+          className="stage-step"
+          type="button"
+          aria-label="Next stage"
+          onClick={() => setFrameIndex((current) => (current + 1) % dataset.frames.length)}
+        >
+          {">"}
+        </button>
       </footer>
     </main>
   );
