@@ -1,0 +1,121 @@
+{
+  "format": "lcdm-density-volume",
+  "frames": [
+    {
+      "a": 0.05,
+      "byte_length": 2097152,
+      "density_std": 0.6260577440261841,
+      "index": 0,
+      "path": "frames/density_0000.u8",
+      "step": 0,
+      "z": 19.0
+    },
+    {
+      "a": 0.24000000000000002,
+      "byte_length": 2097152,
+      "density_std": 0.8917837142944336,
+      "index": 1,
+      "path": "frames/density_0001.u8",
+      "step": 2,
+      "z": 3.166666666666666
+    },
+    {
+      "a": 0.525,
+      "byte_length": 2097152,
+      "density_std": 1.4989063739776611,
+      "index": 2,
+      "path": "frames/density_0002.u8",
+      "step": 5,
+      "z": 0.9047619047619047
+    },
+    {
+      "a": 0.715,
+      "byte_length": 2097152,
+      "density_std": 1.7728774547576904,
+      "index": 3,
+      "path": "frames/density_0003.u8",
+      "step": 7,
+      "z": 0.39860139860139876
+    },
+    {
+      "a": 0.9999999999999999,
+      "byte_length": 2097152,
+      "density_std": 1.9164824485778809,
+      "index": 4,
+      "path": "frames/density_0004.u8",
+      "step": 10,
+      "z": 2.220446049250313e-16
+    }
+  ],
+  "provenance": {
+    "config": {
+      "cosmology": {
+        "a_final": 1.0,
+        "a_initial": 0.05,
+        "a_s": 2.1e-09,
+        "h0": 67.66,
+        "k_pivot_mpc": 0.05,
+        "n_s": 0.96,
+        "omega_b": 0.0486,
+        "omega_lambda": 0.6903,
+        "omega_m": 0.3097,
+        "sigma8": 0.811,
+        "t_cmb": 2.7255
+      },
+      "grid": {
+        "box_size_mpc_h": 100.0,
+        "n_grid_1d": 128,
+        "n_particles_1d": 128
+      },
+      "integrator": {
+        "method": "kdk_a",
+        "num_steps": 10
+      },
+      "output": {
+        "output_root": "outputs",
+        "save_density": true,
+        "save_plots": true
+      },
+      "performance": {
+        "fft_backend": "scipy",
+        "fft_workers": 1,
+        "use_numba": false
+      },
+      "random_seed": 38,
+      "validation": {
+        "enable_invariants": true,
+        "enable_reference_compare": false
+      }
+    },
+    "run_id": "run-66635bfe6a",
+    "source": "lcdm_sim",
+    "validation": {
+      "status": "validated",
+      "summary": {
+        "num_checks": 8,
+        "num_failed": 0,
+        "num_passed": 8,
+        "run_dir": "outputs/gallery_128"
+      }
+    }
+  },
+  "scenario_id": "gallery_128",
+  "schema_version": 1,
+  "volume": {
+    "box_size_mpc_h": 100.0,
+    "dimensions": [
+      128,
+      128,
+      128
+    ],
+    "layout": "C",
+    "scalar_transform": {
+      "input_floor": -0.999999,
+      "name": "log1p_overdensity",
+      "transformed_max": 4.290426731109619,
+      "transformed_min": -13.802318572998047
+    },
+    "units": "overdensity",
+    "voxel_encoding": "uint8"
+  }
+}
