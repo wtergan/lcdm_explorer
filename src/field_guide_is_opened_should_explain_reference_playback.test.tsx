@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { App } from "./App";
@@ -49,18 +49,34 @@ const dataset = parseReferenceDataset({
 });
 
 describe("Explore field guide", () => {
-  it("field guide is opened should explain reference playback", () => {
+  it("field guide is opened should explain reference playback", async () => {
     render(<App initialDataset={dataset} />);
 
     fireEvent.click(screen.getByRole("button", { name: /open field guide/i }));
 
+    expect(screen.getByRole("dialog", { name: /how structure appears/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /close field guide/i })).toHaveFocus();
     expect(screen.getByText(/exported reference playback/i)).toBeInTheDocument();
     expect(screen.getByText(/later Experiment mode/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /diagnostics/i }));
+    const diagnosticsTab = screen.getByRole("button", { name: /diagnostics/i });
+    fireEvent.click(diagnosticsTab);
 
+    expect(screen.getByRole("dialog", { name: /density contrast growth/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /density contrast growth/i })).toBeInTheDocument();
     expect(screen.getByText("1.773")).toBeInTheDocument();
     expect(screen.getByText(/128 cubed voxels/i)).toBeInTheDocument();
+
+    diagnosticsTab.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(screen.getByRole("button", { name: /close field guide/i })).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(diagnosticsTab).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /open field guide/i })).toHaveFocus();
+    });
   });
 });

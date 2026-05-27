@@ -68,10 +68,22 @@ export function InterpretationPanel({
   onClose,
 }: InterpretationPanelProps) {
   return (
-    <aside className="interpretation-panel" aria-label="Explore field guide">
+    <aside
+      aria-labelledby="guide-dialog-title"
+      aria-modal="true"
+      className="interpretation-panel"
+      id="guide-dialog"
+      role="dialog"
+    >
       <header className="panel-header">
         <p className="eyebrow">Field Guide</p>
-        <button className="panel-close" type="button" onClick={onClose} aria-label="Close field guide">
+        <button
+          autoFocus
+          className="panel-close"
+          type="button"
+          onClick={onClose}
+          aria-label="Close field guide"
+        >
           Close
         </button>
       </header>
@@ -95,7 +107,7 @@ export function InterpretationPanel({
       </nav>
       {tab === "guide" ? (
         <div className="panel-content">
-          <h2>How structure appears</h2>
+          <h2 id="guide-dialog-title">How structure appears</h2>
           <p>
             This is exported reference playback from a validated <strong>lcdm_sim</strong> run.
             Brighter threads mark matter concentrating into filaments and knots as cosmic time
@@ -113,7 +125,7 @@ export function InterpretationPanel({
         </div>
       ) : (
         <div className="panel-content">
-          <h2>Density contrast growth</h2>
+          <h2 id="guide-dialog-title">Density contrast growth</h2>
           <p>
             Spread in the exported density field rises as initially small variations collect into
             visible structure.

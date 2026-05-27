@@ -19,38 +19,54 @@ const frameSchema = z.object({
   density_std: z.number().nonnegative(),
 });
 
-const referenceDatasetSchema = z.object({
-  schema_version: z.literal(supportedSchemaVersion),
-  format: z.literal("lcdm-density-volume"),
-  scenario_id: z.string().min(1),
-  provenance: z.object({
-    source: z.literal("lcdm_sim"),
-    run_id: z.string().min(1),
-    config: z.record(z.string(), z.unknown()).nullable().optional(),
-    validation: z.object({
-      status: z.literal("validated"),
-      summary: z.record(z.string(), z.unknown()).nullable().optional(),
+const referenceDatasetSchema = z
+  .object({
+    schema_version: z.literal(supportedSchemaVersion),
+    format: z.literal("lcdm-density-volume"),
+    scenario_id: z.string().min(1),
+    provenance: z.object({
+      source: z.literal("lcdm_sim"),
+      run_id: z.string().min(1),
+      config: z.record(z.string(), z.unknown()).nullable().optional(),
+      validation: z.object({
+        status: z.literal("validated"),
+        summary: z.record(z.string(), z.unknown()).nullable().optional(),
+      }),
     }),
-  }),
-  volume: z.object({
-    dimensions: z.tuple([
-      z.number().int().positive(),
-      z.number().int().positive(),
-      z.number().int().positive(),
-    ]),
-    box_size_mpc_h: z.number().positive(),
-    units: z.string().min(1),
-    voxel_encoding: z.literal("uint8"),
-    layout: z.literal("C"),
-    scalar_transform: z.object({
-      name: z.literal("log1p_overdensity"),
-      input_floor: z.number(),
-      transformed_min: z.number(),
-      transformed_max: z.number(),
+    volume: z.object({
+      dimensions: z.tuple([
+        z.number().int().positive(),
+        z.number().int().positive(),
+        z.number().int().positive(),
+      ]),
+      box_size_mpc_h: z.number().positive(),
+      units: z.string().min(1),
+      voxel_encoding: z.literal("uint8"),
+      layout: z.literal("C"),
+      scalar_transform: z.object({
+        name: z.literal("log1p_overdensity"),
+        input_floor: z.number(),
+        transformed_min: z.number(),
+        transformed_max: z.number(),
+      }),
     }),
-  }),
-  frames: z.array(frameSchema).min(1),
-});
+    frames: z.array(frameSchema).min(1),
+  })
+  .superRefine((dataset, context) => {
+    const expectedBytes = dataset.volume.dimensions.reduce(
+      (product, dimension) => product * dimension,
+      1,
+    );
+    dataset.frames.forEach((frame, index) => {
+      if (frame.byte_length !== expectedBytes) {
+        context.addIssue({
+          code: "custom",
+          path: ["frames", index, "byte_length"],
+          message: `Expected ${expectedBytes} uint8 voxel bytes`,
+        });
+      }
+    });
+  });
 
 export type ReferenceDataset = z.infer<typeof referenceDatasetSchema>;
 

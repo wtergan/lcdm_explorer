@@ -58,5 +58,6 @@ describe("Explore timeline", () => {
 
     expect(screen.getByText(/a = 0.050/i)).toBeInTheDocument();
     expect(screen.getByText(/z = 19.00/i)).toBeInTheDocument();
+    expect(screen.getByText("0.050").closest("li")).toHaveAttribute("aria-current", "step");
   });
 });

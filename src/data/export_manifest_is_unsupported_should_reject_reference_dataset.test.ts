@@ -51,4 +51,17 @@ describe("reference dataset manifest", () => {
     expect(parsed.scenario_id).toBe("gallery_128");
     expect(parsed.frames[0].z).toBe(19);
   });
+
+  it("export manifest has no frames should reject empty playback", () => {
+    expect(() => parseReferenceDataset({ ...manifest, frames: [] })).toThrow(/invalid/i);
+  });
+
+  it("frame byte length disagrees with volume should reject reference dataset", () => {
+    const inconsistent = {
+      ...manifest,
+      frames: [{ ...manifest.frames[0], byte_length: 63 }],
+    };
+
+    expect(() => parseReferenceDataset(inconsistent)).toThrow(/expected 2097152 uint8 voxel bytes/i);
+  });
 });

@@ -21,6 +21,7 @@ import {
   RedFormat,
   Scene,
   ShaderMaterial,
+  Spherical,
   UnsignedByteType,
   Vector3,
   WebGLRenderer,
@@ -164,7 +165,12 @@ export function DensityVolumeViewer({
     renderer.setClearColor(0x030508, 1);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.domElement.className = "volume-canvas";
-    renderer.domElement.setAttribute("aria-label", "Interactive density volume");
+    renderer.domElement.tabIndex = 0;
+    renderer.domElement.setAttribute(
+      "aria-label",
+      "Interactive density volume. Arrow keys orbit; plus and minus keys zoom.",
+    );
+    renderer.domElement.setAttribute("aria-describedby", "volume-interaction-help");
     container.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -174,6 +180,45 @@ export function DensityVolumeViewer({
     controls.target.set(0, 0, 0);
     controls.saveState();
     controlsRef.current = controls;
+
+    const adjustCamera = (event: KeyboardEvent) => {
+      const offset = camera.position.clone().sub(controls.target);
+      const spherical = new Spherical().setFromVector3(offset);
+      const rotationStep = Math.PI / 24;
+      let handled = true;
+      switch (event.key) {
+        case "ArrowLeft":
+          spherical.theta -= rotationStep;
+          break;
+        case "ArrowRight":
+          spherical.theta += rotationStep;
+          break;
+        case "ArrowUp":
+          spherical.phi = Math.max(0.12, spherical.phi - rotationStep);
+          break;
+        case "ArrowDown":
+          spherical.phi = Math.min(Math.PI - 0.12, spherical.phi + rotationStep);
+          break;
+        case "+":
+        case "=":
+          spherical.radius = Math.max(controls.minDistance, spherical.radius * 0.9);
+          break;
+        case "-":
+        case "_":
+          spherical.radius = Math.min(controls.maxDistance, spherical.radius * 1.1);
+          break;
+        default:
+          handled = false;
+      }
+      if (!handled) {
+        return;
+      }
+      event.preventDefault();
+      camera.position.copy(controls.target).add(new Vector3().setFromSpherical(spherical));
+      camera.lookAt(controls.target);
+      controls.update();
+    };
+    renderer.domElement.addEventListener("keydown", adjustCamera);
 
     const resize = () => {
       const bounds = container.getBoundingClientRect();
@@ -201,6 +246,7 @@ export function DensityVolumeViewer({
       observer.disconnect();
       controls.dispose();
       controlsRef.current = null;
+      renderer.domElement.removeEventListener("keydown", adjustCamera);
       textureRef.current?.dispose();
       textureRef.current = null;
       material.dispose();
@@ -224,6 +270,9 @@ export function DensityVolumeViewer({
     }
     const frame = dataset.frames[frameIndex];
     const abortController = new AbortController();
+    textureRef.current?.dispose();
+    textureRef.current = null;
+    material.uniforms.densityVolume.value = null;
     setStatus("loading");
     fetch(`/datasets/${dataset.scenario_id}/${frame.path}`, {
       signal: abortController.signal,
@@ -244,7 +293,6 @@ export function DensityVolumeViewer({
         texture.magFilter = LinearFilter;
         texture.unpackAlignment = 1;
         texture.needsUpdate = true;
-        textureRef.current?.dispose();
         textureRef.current = texture;
         material.uniforms.densityVolume.value = texture;
         setStatus("ready");
