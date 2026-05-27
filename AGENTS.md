@@ -4,10 +4,10 @@ Project-specific guidance for the interactive LCDM browser explorer.
 
 ## Current Phase
 
-- This repo is in planning/scaffolding state; no application stack is installed
-  yet.
-- Begin implementation only from an explicit user request and a new executable
-  feature plan under `.vault/plans/`.
+- Explore mode is implemented on a React/TypeScript/Vite foundation with a
+  validated compact reference dataset and direct Three.js/WebGL2 viewer.
+- Experiment is not implemented; begin future live-compute work only from an
+  explicit user request and a new executable feature plan under `.vault/plans/`.
 - When a local `.vault/` directory is available, treat `.vault/PLAN.md` as the
   current project roadmap and `.vault/research/` as grounding evidence.
 
@@ -22,18 +22,19 @@ Project-specific guidance for the interactive LCDM browser explorer.
 
 ## Source Boundary
 
-- `~/Code/lcdm_sim` is the reference particle-mesh engine and eventual
-  web-dataset export authority.
+- `~/Code/lcdm_sim` is the reference particle-mesh engine and web-dataset
+  export authority.
 - Do not duplicate or silently diverge from its simulation assumptions without
   an explicit decision record and comparison plan.
 - Compact exported visualization assets belong in this app only after the
-  export contract is implemented and validated upstream.
+  export contract is implemented and validated upstream; the bundled
+  `gallery_128` fixture satisfies that boundary.
 
-## Intended Implementation Direction
+## Implementation Direction
 
-- Planned app stack: React, TypeScript, and Vite.
-- Planned rendering: Three.js density-volume and particle rendering with a
-  non-WebGPU-dependent viewer path.
+- Current app stack: React, TypeScript, and Vite.
+- Current Explore rendering: Three.js density-volume rendering with a
+  non-WebGPU-dependent WebGL2 viewer path.
 - Planned live simulation: off-main-thread worker flow, starting with validated
   `16^3` and `32^3` runs.
 - Keep WebGPU acceleration, `64^3` live runs, cosmological parameter controls,
