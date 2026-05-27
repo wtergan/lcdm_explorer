@@ -1,0 +1,23 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+.vite/
+
+# Test and browser artifacts
+playwright-report/
+test-results/
+*.log
+
+# Environment and editor state
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Generated simulation assets are introduced deliberately through a plan.
+outputs/
+tmp/
+
+# Local Codex operational memory and private design/planning context.
+.vault/
