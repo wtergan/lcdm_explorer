@@ -13,7 +13,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type WheelEvent,
 } from "react";
 
 import {
@@ -52,7 +51,7 @@ function clampScrubPosition(position: number, maxFrameIndex: number) {
   return Math.min(Math.max(position, 0), maxFrameIndex);
 }
 
-function wheelDeltaToFrameStep(event: WheelEvent<HTMLElement>) {
+function wheelDeltaToFrameStep(event: WheelEvent) {
   const deltaScale = event.deltaMode === 1 ? 0.12 : event.deltaMode === 2 ? 1 : 0.006;
   return Math.min(Math.max(event.deltaY * deltaScale, -1), 1);
 }
@@ -88,6 +87,7 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
   const [viewMode, setViewMode] = useState<ViewMode>("density");
   const guideTriggerRef = useRef<HTMLButtonElement>(null);
   const experimentTriggerRef = useRef<HTMLButtonElement>(null);
+  const viewerStageRef = useRef<HTMLElement>(null);
   const prefersReducedMotion = usePrefersReducedMotion();
   const playbackRunning = isPlaying && !prefersReducedMotion;
   const hasParticleAssets = datasetHasParticles(dataset);
@@ -143,7 +143,7 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
   );
 
   const scrubByWheel = useCallback(
-    (event: WheelEvent<HTMLElement>) => {
+    (event: WheelEvent) => {
       if (overlay) {
         return;
       }
@@ -154,6 +154,15 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
     },
     [maxFrameIndex, overlay],
   );
+
+  useEffect(() => {
+    const viewerStage = viewerStageRef.current;
+    if (!viewerStage) {
+      return;
+    }
+    viewerStage.addEventListener("wheel", scrubByWheel, { passive: false });
+    return () => viewerStage.removeEventListener("wheel", scrubByWheel);
+  }, [scrubByWheel]);
 
   useEffect(() => {
     if (!overlay) {
@@ -278,9 +287,9 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
         </aside>
 
         <section
+          ref={viewerStageRef}
           className={`viewer-stage${overlay ? " has-panel" : ""}`}
           aria-label="Interactive density volume"
-          onWheel={scrubByWheel}
         >
           <div className="viewer-content" inert={overlay ? true : undefined}>
             <div className="viewer-control-deck" aria-label="Viewer presentation controls">
