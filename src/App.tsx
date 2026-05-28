@@ -5,7 +5,16 @@
  * density-volume renderer. It owns dataset and timeline state while the
  * renderer module owns graphics resources and interaction cleanup.
  */
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type WheelEvent,
+} from "react";
 
 import {
   datasetHasParticles,
@@ -17,6 +26,7 @@ import {
   type InterpretationTab,
 } from "./explore/InterpretationPanel";
 import { ExperimentPreviewPanel } from "./experiment/ExperimentPreviewPanel";
+import type { GeometryMode, ViewMode } from "./viewer/DensityVolumeViewer";
 const DensityVolumeViewer = lazy(async () => {
   const module = await import("./viewer/DensityVolumeViewer");
   return { default: module.DensityVolumeViewer };
@@ -27,14 +37,25 @@ type DatasetState =
   | { status: "ready"; dataset: ReferenceDataset }
   | { status: "error"; message: string };
 type Overlay = "guide" | "experiment" | null;
-type GeometryMode = "sphere" | "cube";
-type ViewMode = "density" | "both" | "particles";
 
 export interface AppProps {
   initialDataset?: ReferenceDataset;
 }
 
 const manifestUrl = "/datasets/gallery_128/manifest.json";
+const defaultFrameIndex = 3;
+
+function clampScrubPosition(position: number, maxFrameIndex: number) {
+  if (!Number.isFinite(position)) {
+    return 0;
+  }
+  return Math.min(Math.max(position, 0), maxFrameIndex);
+}
+
+function wheelDeltaToFrameStep(event: WheelEvent<HTMLElement>) {
+  const deltaScale = event.deltaMode === 1 ? 0.12 : event.deltaMode === 2 ? 1 : 0.006;
+  return Math.min(Math.max(event.deltaY * deltaScale, -1), 1);
+}
 
 function usePrefersReducedMotion() {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
@@ -55,7 +76,10 @@ function usePrefersReducedMotion() {
 }
 
 function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
-  const [frameIndex, setFrameIndex] = useState(Math.min(3, dataset.frames.length - 1));
+  const maxFrameIndex = dataset.frames.length - 1;
+  const [scrubPosition, setScrubPosition] = useState(
+    Math.min(defaultFrameIndex, maxFrameIndex),
+  );
   const [isPlaying, setIsPlaying] = useState(false);
   const [resetViewToken, setResetViewToken] = useState(0);
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -64,11 +88,18 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
   const [viewMode, setViewMode] = useState<ViewMode>("density");
   const guideTriggerRef = useRef<HTMLButtonElement>(null);
   const experimentTriggerRef = useRef<HTMLButtonElement>(null);
-  const selectedFrame = dataset.frames[frameIndex];
   const prefersReducedMotion = usePrefersReducedMotion();
   const playbackRunning = isPlaying && !prefersReducedMotion;
   const hasParticleAssets = datasetHasParticles(dataset);
   const activeViewMode = hasParticleAssets ? viewMode : "density";
+  const activeScrubPosition = clampScrubPosition(scrubPosition, maxFrameIndex);
+  const selectedFrameIndex = Math.round(activeScrubPosition);
+  const currentFrameIndex = Math.floor(activeScrubPosition);
+  const nextFrameIndex = Math.min(currentFrameIndex + 1, maxFrameIndex);
+  const frameBlend = prefersReducedMotion
+    ? 0
+    : activeScrubPosition - currentFrameIndex;
+  const selectedFrame = dataset.frames[selectedFrameIndex];
 
   const closeOverlay = useCallback(() => {
     const closing = overlay;
@@ -87,10 +118,42 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
       return;
     }
     const timer = window.setInterval(() => {
-      setFrameIndex((current) => (current + 1) % dataset.frames.length);
-    }, 1300);
+      setScrubPosition((current) => {
+        const next = current + 0.08;
+        return next > maxFrameIndex ? 0 : next;
+      });
+    }, 80);
     return () => window.clearInterval(timer);
-  }, [dataset.frames.length, playbackRunning]);
+  }, [dataset.frames.length, maxFrameIndex, playbackRunning]);
+
+  const jumpToFrame = useCallback(
+    (frameIndex: number) => {
+      setIsPlaying(false);
+      setScrubPosition(clampScrubPosition(frameIndex, maxFrameIndex));
+    },
+    [maxFrameIndex],
+  );
+
+  const handleTimelineChange = useCallback(
+    (position: number) => {
+      setIsPlaying(false);
+      setScrubPosition(clampScrubPosition(position, maxFrameIndex));
+    },
+    [maxFrameIndex],
+  );
+
+  const scrubByWheel = useCallback(
+    (event: WheelEvent<HTMLElement>) => {
+      if (overlay) {
+        return;
+      }
+      event.preventDefault();
+      setIsPlaying(false);
+      const delta = wheelDeltaToFrameStep(event);
+      setScrubPosition((current) => clampScrubPosition(current + delta, maxFrameIndex));
+    },
+    [maxFrameIndex, overlay],
+  );
 
   useEffect(() => {
     if (!overlay) {
@@ -183,7 +246,7 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
                   <span aria-hidden="true" />
                   <button
                     type="button"
-                    onClick={() => setFrameIndex(frame.index)}
+                    onClick={() => jumpToFrame(frame.index)}
                     aria-label={`Jump to scale factor ${frame.a.toFixed(3)}, redshift ${frame.z.toFixed(2)}`}
                   >
                     <strong>{frame.a.toFixed(3)}</strong>
@@ -217,6 +280,7 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
         <section
           className={`viewer-stage${overlay ? " has-panel" : ""}`}
           aria-label="Interactive density volume"
+          onWheel={scrubByWheel}
         >
           <div className="viewer-content" inert={overlay ? true : undefined}>
             <div className="viewer-control-deck" aria-label="Viewer presentation controls">
@@ -267,13 +331,18 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
             <Suspense fallback={<p className="viewer-loading">Preparing viewer...</p>}>
               <DensityVolumeViewer
                 dataset={dataset}
-                frameIndex={frameIndex}
+                frameIndex={currentFrameIndex}
+                nextFrameIndex={nextFrameIndex}
+                particleFrameIndex={selectedFrameIndex}
+                frameBlend={frameBlend}
+                geometryMode={geometryMode}
+                viewMode={activeViewMode}
                 resetViewToken={resetViewToken}
               />
             </Suspense>
             <div className="interaction-bar">
               <p className="interaction-hint" id="volume-interaction-help">
-                Drag or arrow keys to orbit / scroll or +/- to zoom
+                Scroll over viewer to scrub time / drag or arrow keys to orbit / +/- to zoom
               </p>
               <button className="reset-view" type="button" onClick={() => setResetViewToken((token) => token + 1)}>
                 Reset view
@@ -283,7 +352,7 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
           {overlay === "guide" ? (
             <InterpretationPanel
               dataset={dataset}
-              frameIndex={frameIndex}
+              frameIndex={selectedFrameIndex}
               tab={interpretationTab}
               onTabChange={setInterpretationTab}
               onClose={closeOverlay}
@@ -316,7 +385,7 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
           type="button"
           aria-label="Previous stage"
           onClick={() =>
-            setFrameIndex((current) => (current - 1 + dataset.frames.length) % dataset.frames.length)
+            jumpToFrame((selectedFrameIndex - 1 + dataset.frames.length) % dataset.frames.length)
           }
         >
           {"<"}
@@ -330,15 +399,17 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
             type="range"
             min={0}
             max={dataset.frames.length - 1}
-            value={frameIndex}
-            onChange={(event) => setFrameIndex(Number(event.target.value))}
+            step={prefersReducedMotion ? 1 : 0.01}
+            value={activeScrubPosition}
+            aria-valuetext={`a = ${selectedFrame.a.toFixed(3)}, z = ${selectedFrame.z.toFixed(2)}`}
+            onChange={(event) => handleTimelineChange(Number(event.target.value))}
           />
         </div>
         <button
           className="stage-step"
           type="button"
           aria-label="Next stage"
-          onClick={() => setFrameIndex((current) => (current + 1) % dataset.frames.length)}
+          onClick={() => jumpToFrame((selectedFrameIndex + 1) % dataset.frames.length)}
         >
           {">"}
         </button>

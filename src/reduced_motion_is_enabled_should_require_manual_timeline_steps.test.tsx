@@ -59,6 +59,10 @@ describe("Reduced motion playback", () => {
     expect(
       screen.getByRole("button", { name: /playback unavailable while reduced motion is enabled/i }),
     ).toBeDisabled();
+    expect(screen.getByRole("slider", { name: /cosmic time frame/i })).toHaveAttribute(
+      "step",
+      "1",
+    );
     expect(screen.getByText(/manual stages only/i)).toBeInTheDocument();
   });
 });
