@@ -8,6 +8,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  datasetHasParticles,
   loadReferenceDataset,
   type ReferenceDataset,
 } from "./data/referenceDataset";
@@ -26,6 +27,8 @@ type DatasetState =
   | { status: "ready"; dataset: ReferenceDataset }
   | { status: "error"; message: string };
 type Overlay = "guide" | "experiment" | null;
+type GeometryMode = "sphere" | "cube";
+type ViewMode = "density" | "both" | "particles";
 
 export interface AppProps {
   initialDataset?: ReferenceDataset;
@@ -57,11 +60,15 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
   const [resetViewToken, setResetViewToken] = useState(0);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [interpretationTab, setInterpretationTab] = useState<InterpretationTab>("guide");
+  const [geometryMode, setGeometryMode] = useState<GeometryMode>("sphere");
+  const [viewMode, setViewMode] = useState<ViewMode>("density");
   const guideTriggerRef = useRef<HTMLButtonElement>(null);
   const experimentTriggerRef = useRef<HTMLButtonElement>(null);
   const selectedFrame = dataset.frames[frameIndex];
   const prefersReducedMotion = usePrefersReducedMotion();
   const playbackRunning = isPlaying && !prefersReducedMotion;
+  const hasParticleAssets = datasetHasParticles(dataset);
+  const activeViewMode = hasParticleAssets ? viewMode : "density";
 
   const closeOverlay = useCallback(() => {
     const closing = overlay;
@@ -164,6 +171,30 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
           <p className="time-value">a = {selectedFrame.a.toFixed(3)}</p>
           <p className="time-value subdued">z = {selectedFrame.z.toFixed(2)}</p>
 
+          <section className="frame-rail" aria-label="Reference stages">
+            <p className="eyebrow">Scale factor ladder</p>
+            <ol>
+              {dataset.frames.map((frame) => (
+                <li
+                  aria-current={frame.index === selectedFrame.index ? "step" : undefined}
+                  className={frame.index === selectedFrame.index ? "selected" : ""}
+                  key={frame.step}
+                >
+                  <span aria-hidden="true" />
+                  <button
+                    type="button"
+                    onClick={() => setFrameIndex(frame.index)}
+                    aria-label={`Jump to scale factor ${frame.a.toFixed(3)}, redshift ${frame.z.toFixed(2)}`}
+                  >
+                    <strong>{frame.a.toFixed(3)}</strong>
+                    <small>z {frame.z.toFixed(2)}</small>
+                  </button>
+                </li>
+              ))}
+            </ol>
+            <p className="rail-foot">Even visual steps, true saved-frame labels.</p>
+          </section>
+
           <div className="divider" />
           <p className="eyebrow">Source</p>
           <p className="provenance">Exported from lcdm_sim</p>
@@ -188,6 +219,51 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
           aria-label="Interactive density volume"
         >
           <div className="viewer-content" inert={overlay ? true : undefined}>
+            <div className="viewer-control-deck" aria-label="Viewer presentation controls">
+              <div className="viewer-control-group" aria-label="Volume geometry">
+                <p>Geometry</p>
+                <button
+                  type="button"
+                  aria-pressed={geometryMode === "sphere"}
+                  onClick={() => setGeometryMode("sphere")}
+                >
+                  Sphere
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={geometryMode === "cube"}
+                  onClick={() => setGeometryMode("cube")}
+                >
+                  Cube
+                </button>
+              </div>
+              <div className="viewer-control-group" aria-label="Reference layer">
+                <p>Layer</p>
+                <button
+                  type="button"
+                  aria-pressed={activeViewMode === "density"}
+                  onClick={() => setViewMode("density")}
+                >
+                  Density
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={activeViewMode === "both"}
+                  disabled={!hasParticleAssets}
+                  onClick={() => setViewMode("both")}
+                >
+                  Both
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={activeViewMode === "particles"}
+                  disabled={!hasParticleAssets}
+                  onClick={() => setViewMode("particles")}
+                >
+                  Particles
+                </button>
+              </div>
+            </div>
             <Suspense fallback={<p className="viewer-loading">Preparing viewer...</p>}>
               <DensityVolumeViewer
                 dataset={dataset}
@@ -217,23 +293,6 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
             <ExperimentPreviewPanel onClose={closeOverlay} />
           ) : null}
         </section>
-
-        <aside className="frame-rail" aria-label="Reference stages" inert={overlay ? true : undefined}>
-          <p className="eyebrow">Scale factor a</p>
-          <ol>
-            {dataset.frames.map((frame) => (
-              <li
-                aria-current={frame.index === selectedFrame.index ? "step" : undefined}
-                className={frame.index === selectedFrame.index ? "selected" : ""}
-                key={frame.step}
-              >
-                <span />
-                {frame.a.toFixed(3)}
-              </li>
-            ))}
-          </ol>
-          <p className="rail-foot">Early universe to present day</p>
-        </aside>
       </section>
 
       <footer className="timeline-shell" inert={overlay ? true : undefined}>

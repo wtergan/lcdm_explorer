@@ -159,9 +159,13 @@ input:focus-visible {
   padding: var(--space-lg) 0;
 }
 
-.context-panel,
-.frame-rail {
+.context-panel {
   color: var(--muted);
+}
+
+.context-panel {
+  display: flex;
+  flex-direction: column;
 }
 
 .eyebrow {
@@ -188,7 +192,7 @@ input:focus-visible {
 
 .divider {
   height: 1px;
-  margin: var(--space-xl) 0;
+  margin: var(--space-lg) 0;
   background: var(--line);
 }
 
@@ -229,10 +233,12 @@ input:focus-visible {
 .viewer-stage {
   position: relative;
   display: grid;
-  min-height: 25rem;
+  min-height: 31rem;
   overflow: hidden;
-  border: 1px solid var(--line);
-  background: var(--ink-1);
+  border: 1px solid color-mix(in oklch, var(--line) 70%, transparent);
+  background:
+    radial-gradient(circle at 50% 48%, oklch(15% 0.035 260 / 0.88), transparent 42%),
+    var(--ink-1);
   place-items: center;
 }
 
@@ -244,6 +250,54 @@ input:focus-visible {
 .viewer-content {
   position: absolute;
   inset: 0;
+}
+
+.viewer-control-deck {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  z-index: 1;
+  display: grid;
+  gap: var(--space-xs);
+  justify-items: end;
+}
+
+.viewer-control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid color-mix(in oklch, var(--line) 78%, transparent);
+  padding: 0.25rem;
+  background: color-mix(in oklch, var(--ink-1) 82%, transparent);
+}
+
+.viewer-control-group p {
+  margin: 0 var(--space-xs) 0 0.4rem;
+  color: var(--quiet);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.viewer-control-group button {
+  min-height: 2.2rem;
+  border: 0;
+  padding: 0.35rem 0.55rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.viewer-control-group button[aria-pressed="true"] {
+  background: oklch(21% 0.026 246);
+  color: var(--text);
+}
+
+.viewer-control-group button:disabled {
+  cursor: not-allowed;
+  color: oklch(48% 0.014 240);
 }
 
 .volume-canvas {
@@ -538,27 +592,71 @@ input:focus-visible {
   color: var(--quiet);
 }
 
+.frame-rail {
+  margin-top: var(--space-lg);
+  color: var(--muted);
+}
+
 .frame-rail ol {
   display: flex;
-  gap: var(--space-xs);
-  margin: 0 0 var(--space-sm);
+  flex-direction: column-reverse;
+  gap: 0;
+  margin: 0 0 var(--space-md);
   padding: 0;
   list-style: none;
 }
 
 .frame-rail li {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 0.9rem 1fr;
   gap: var(--space-xs);
+  align-items: center;
   color: var(--quiet);
   font-size: 0.8rem;
 }
 
 .frame-rail li span {
-  width: 0.45rem;
-  height: 0.45rem;
+  position: relative;
+  width: 0.5rem;
+  height: 0.5rem;
   border-radius: 50%;
   background: var(--quiet);
+}
+
+.frame-rail li:not(:last-child) span::after {
+  position: absolute;
+  top: 0.5rem;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  height: 2.25rem;
+  content: "";
+  background: var(--line);
+}
+
+.frame-rail button {
+  display: flex;
+  min-height: 2.75rem;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.frame-rail strong {
+  color: inherit;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.frame-rail small {
+  color: var(--quiet);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .frame-rail li.selected {
@@ -681,20 +779,13 @@ input:focus-visible {
 
   .explore-layout {
     display: grid;
-    grid-template-columns: 12rem 1fr 10rem;
+    grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr);
     gap: var(--space-lg);
     align-items: stretch;
   }
 
   .viewer-stage {
-    min-height: calc(100dvh - 12.5rem);
-  }
-
-  .frame-rail ol {
-    flex-direction: column-reverse;
-    justify-content: space-between;
-    height: min(28rem, calc(100dvh - 21rem));
-    padding-top: var(--space-md);
+    min-height: calc(100dvh - 12rem);
   }
 }
 
