@@ -1,11 +1,16 @@
 {
-  "format": "lcdm-density-volume",
+  "format": "lcdm-density-particles",
   "frames": [
     {
       "a": 0.05,
       "byte_length": 2097152,
       "density_std": 0.6260577440261841,
       "index": 0,
+      "particles": {
+        "byte_length": 600000,
+        "particle_count": 100000,
+        "path": "frames/particles_0000.u16"
+      },
       "path": "frames/density_0000.u8",
       "step": 0,
       "z": 19.0
@@ -15,6 +20,11 @@
       "byte_length": 2097152,
       "density_std": 0.8917837142944336,
       "index": 1,
+      "particles": {
+        "byte_length": 600000,
+        "particle_count": 100000,
+        "path": "frames/particles_0001.u16"
+      },
       "path": "frames/density_0001.u8",
       "step": 2,
       "z": 3.166666666666666
@@ -24,6 +34,11 @@
       "byte_length": 2097152,
       "density_std": 1.4989063739776611,
       "index": 2,
+      "particles": {
+        "byte_length": 600000,
+        "particle_count": 100000,
+        "path": "frames/particles_0002.u16"
+      },
       "path": "frames/density_0002.u8",
       "step": 5,
       "z": 0.9047619047619047
@@ -33,6 +48,11 @@
       "byte_length": 2097152,
       "density_std": 1.7728774547576904,
       "index": 3,
+      "particles": {
+        "byte_length": 600000,
+        "particle_count": 100000,
+        "path": "frames/particles_0003.u16"
+      },
       "path": "frames/density_0003.u8",
       "step": 7,
       "z": 0.39860139860139876
@@ -42,11 +62,27 @@
       "byte_length": 2097152,
       "density_std": 1.9164824485778809,
       "index": 4,
+      "particles": {
+        "byte_length": 600000,
+        "particle_count": 100000,
+        "path": "frames/particles_0004.u16"
+      },
       "path": "frames/density_0004.u8",
       "step": 10,
       "z": 2.220446049250313e-16
     }
   ],
+  "particles": {
+    "byte_order": "little_endian",
+    "coordinate_space": "periodic_box_fraction",
+    "layout": "interleaved_xyz",
+    "position_encoding": "uint16_normalized",
+    "sample_count": 100000,
+    "sample_indices_sha256": "fbf0d9344dc84d29b9b49a0919793f96169e89b656978f9d0706bae003e60c5b",
+    "sample_method": "numpy.default_rng.choice_without_replacement",
+    "sample_seed": 0,
+    "source_particle_count": 2097152
+  },
   "provenance": {
     "config": {
       "cosmology": {
@@ -100,7 +136,7 @@
     }
   },
   "scenario_id": "gallery_128",
-  "schema_version": 1,
+  "schema_version": 2,
   "volume": {
     "box_size_mpc_h": 100.0,
     "dimensions": [

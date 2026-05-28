@@ -41,7 +41,7 @@ const manifest = {
 describe("reference dataset manifest", () => {
   it("export manifest is unsupported should reject reference dataset", () => {
     expect(() =>
-      parseReferenceDataset({ ...manifest, schema_version: 2 }),
+      parseReferenceDataset({ ...manifest, schema_version: 3 }),
     ).toThrow(/unsupported/i);
   });
 
