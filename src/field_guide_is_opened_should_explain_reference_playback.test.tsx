@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { App } from "./App";
@@ -62,10 +62,13 @@ describe("Explore field guide", () => {
     const diagnosticsTab = screen.getByRole("button", { name: /diagnostics/i });
     fireEvent.click(diagnosticsTab);
 
-    expect(screen.getByRole("dialog", { name: /density contrast growth/i })).toBeInTheDocument();
+    const diagnosticsDialog = screen.getByRole("dialog", {
+      name: /density contrast growth/i,
+    });
+    expect(diagnosticsDialog).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /density contrast growth/i })).toBeInTheDocument();
     expect(screen.getByText("1.773")).toBeInTheDocument();
-    expect(screen.getByText(/128 cubed voxels/i)).toBeInTheDocument();
+    expect(within(diagnosticsDialog).getByText(/128 cubed voxels/i)).toBeInTheDocument();
 
     diagnosticsTab.focus();
     fireEvent.keyDown(document, { key: "Tab" });

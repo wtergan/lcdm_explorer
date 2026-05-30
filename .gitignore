@@ -21,3 +21,5 @@ tmp/
 
 # Local Codex operational memory and private design/planning context.
 .vault/
+
+.worktrees/

@@ -5,9 +5,18 @@
  * density-volume renderer. It owns dataset and timeline state while the
  * renderer module owns graphics resources and interaction cleanup.
  */
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
+  datasetHasParticles,
   loadReferenceDataset,
   type ReferenceDataset,
 } from "./data/referenceDataset";
@@ -16,6 +25,12 @@ import {
   type InterpretationTab,
 } from "./explore/InterpretationPanel";
 import { ExperimentPreviewPanel } from "./experiment/ExperimentPreviewPanel";
+import type {
+  GeometryMode,
+  ViewMode,
+  ZoomDirection,
+  ZoomRequest,
+} from "./viewer/DensityVolumeViewer";
 const DensityVolumeViewer = lazy(async () => {
   const module = await import("./viewer/DensityVolumeViewer");
   return { default: module.DensityVolumeViewer };
@@ -26,12 +41,26 @@ type DatasetState =
   | { status: "ready"; dataset: ReferenceDataset }
   | { status: "error"; message: string };
 type Overlay = "guide" | "experiment" | null;
+type Theme = "dark" | "light";
 
 export interface AppProps {
   initialDataset?: ReferenceDataset;
 }
 
 const manifestUrl = "/datasets/gallery_128/manifest.json";
+const defaultFrameIndex = 3;
+
+function clampScrubPosition(position: number, maxFrameIndex: number) {
+  if (!Number.isFinite(position)) {
+    return 0;
+  }
+  return Math.min(Math.max(position, 0), maxFrameIndex);
+}
+
+function wheelDeltaToFrameStep(event: WheelEvent) {
+  const deltaScale = event.deltaMode === 1 ? 0.12 : event.deltaMode === 2 ? 1 : 0.006;
+  return Math.min(Math.max(event.deltaY * deltaScale, -1), 1);
+}
 
 function usePrefersReducedMotion() {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
@@ -52,16 +81,38 @@ function usePrefersReducedMotion() {
 }
 
 function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
-  const [frameIndex, setFrameIndex] = useState(Math.min(3, dataset.frames.length - 1));
+  const maxFrameIndex = dataset.frames.length - 1;
+  const [scrubPosition, setScrubPosition] = useState(
+    Math.min(defaultFrameIndex, maxFrameIndex),
+  );
   const [isPlaying, setIsPlaying] = useState(false);
   const [resetViewToken, setResetViewToken] = useState(0);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [interpretationTab, setInterpretationTab] = useState<InterpretationTab>("guide");
+  const [geometryMode, setGeometryMode] = useState<GeometryMode>("sphere");
+  const [viewMode, setViewMode] = useState<ViewMode>("density");
+  const [theme, setTheme] = useState<Theme>("dark");
+  const [zoomRequest, setZoomRequest] = useState<ZoomRequest>({
+    direction: "in",
+    token: 0,
+  });
   const guideTriggerRef = useRef<HTMLButtonElement>(null);
   const experimentTriggerRef = useRef<HTMLButtonElement>(null);
-  const selectedFrame = dataset.frames[frameIndex];
+  const viewerStageRef = useRef<HTMLElement>(null);
   const prefersReducedMotion = usePrefersReducedMotion();
   const playbackRunning = isPlaying && !prefersReducedMotion;
+  const hasParticleAssets = datasetHasParticles(dataset);
+  const activeViewMode = hasParticleAssets ? viewMode : "density";
+  const activeScrubPosition = clampScrubPosition(scrubPosition, maxFrameIndex);
+  const selectedFrameIndex = Math.round(activeScrubPosition);
+  const currentFrameIndex = Math.floor(activeScrubPosition);
+  const nextFrameIndex = Math.min(currentFrameIndex + 1, maxFrameIndex);
+  const frameBlend = prefersReducedMotion
+    ? 0
+    : activeScrubPosition - currentFrameIndex;
+  const selectedFrame = dataset.frames[selectedFrameIndex];
+  const cellSizeMpcH =
+    dataset.volume.box_size_mpc_h / dataset.volume.dimensions[0];
 
   const closeOverlay = useCallback(() => {
     const closing = overlay;
@@ -80,10 +131,58 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
       return;
     }
     const timer = window.setInterval(() => {
-      setFrameIndex((current) => (current + 1) % dataset.frames.length);
-    }, 1300);
+      setScrubPosition((current) => {
+        const next = current + 0.08;
+        return next > maxFrameIndex ? 0 : next;
+      });
+    }, 80);
     return () => window.clearInterval(timer);
-  }, [dataset.frames.length, playbackRunning]);
+  }, [dataset.frames.length, maxFrameIndex, playbackRunning]);
+
+  const jumpToFrame = useCallback(
+    (frameIndex: number) => {
+      setIsPlaying(false);
+      setScrubPosition(clampScrubPosition(frameIndex, maxFrameIndex));
+    },
+    [maxFrameIndex],
+  );
+
+  const handleTimelineChange = useCallback(
+    (position: number) => {
+      setIsPlaying(false);
+      setScrubPosition(clampScrubPosition(position, maxFrameIndex));
+    },
+    [maxFrameIndex],
+  );
+
+  const scrubByWheel = useCallback(
+    (event: WheelEvent) => {
+      if (overlay) {
+        return;
+      }
+      event.preventDefault();
+      setIsPlaying(false);
+      const delta = wheelDeltaToFrameStep(event);
+      setScrubPosition((current) => clampScrubPosition(current + delta, maxFrameIndex));
+    },
+    [maxFrameIndex, overlay],
+  );
+
+  const requestZoom = useCallback((direction: ZoomDirection) => {
+    setZoomRequest((current) => ({
+      direction,
+      token: current.token + 1,
+    }));
+  }, []);
+
+  useEffect(() => {
+    const viewerStage = viewerStageRef.current;
+    if (!viewerStage) {
+      return;
+    }
+    viewerStage.addEventListener("wheel", scrubByWheel, { passive: false });
+    return () => viewerStage.removeEventListener("wheel", scrubByWheel);
+  }, [scrubByWheel]);
 
   useEffect(() => {
     if (!overlay) {
@@ -119,7 +218,7 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
   }, [closeOverlay, overlay]);
 
   return (
-    <main className="exhibit-shell">
+    <main className="exhibit-shell" data-theme={theme}>
       <a className="skip-link" href="#explore-content" tabIndex={overlay ? -1 : undefined}>
         Skip to viewer
       </a>
@@ -143,10 +242,30 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
             Experiment <span className="later">preview</span>
           </button>
         </nav>
-        <p className="validation-badge">
-          <span aria-hidden="true" />
-          Validated reference simulation
-        </p>
+        <div className="topbar-actions">
+          <div className="theme-switch" role="group" aria-label="Color theme">
+            <button
+              type="button"
+              aria-label="Use dark mode"
+              aria-pressed={theme === "dark"}
+              onClick={() => setTheme("dark")}
+            >
+              Dark
+            </button>
+            <button
+              type="button"
+              aria-label="Use light mode"
+              aria-pressed={theme === "light"}
+              onClick={() => setTheme("light")}
+            >
+              Light
+            </button>
+          </div>
+          <p className="validation-badge">
+            <span aria-hidden="true" />
+            Validated reference simulation
+          </p>
+        </div>
       </header>
 
       <section
@@ -163,6 +282,123 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
           <p className="eyebrow">Cosmic Time</p>
           <p className="time-value">a = {selectedFrame.a.toFixed(3)}</p>
           <p className="time-value subdued">z = {selectedFrame.z.toFixed(2)}</p>
+
+          <section className="frame-rail" aria-label="Reference stages">
+            <p className="eyebrow">Scale factor ladder</p>
+            <ol>
+              {dataset.frames.map((frame) => (
+                <li
+                  aria-current={frame.index === selectedFrame.index ? "step" : undefined}
+                  className={frame.index === selectedFrame.index ? "selected" : ""}
+                  key={frame.step}
+                >
+                  <span aria-hidden="true" />
+                  <button
+                    type="button"
+                    onClick={() => jumpToFrame(frame.index)}
+                    aria-label={`Jump to scale factor ${frame.a.toFixed(3)}, redshift ${frame.z.toFixed(2)}`}
+                  >
+                    <strong>{frame.a.toFixed(3)}</strong>
+                    <small>z {frame.z.toFixed(2)}</small>
+                  </button>
+                </li>
+              ))}
+            </ol>
+            <p className="rail-foot">Even visual steps, true saved-frame labels.</p>
+          </section>
+
+          <section className="rail-control-deck" aria-label="Viewer presentation controls">
+            <p className="eyebrow">Presentation</p>
+            <div className="viewer-control-group" aria-label="Volume geometry">
+              <p>Geometry</p>
+              <button
+                type="button"
+                aria-pressed={geometryMode === "sphere"}
+                onClick={() => setGeometryMode("sphere")}
+              >
+                Sphere
+              </button>
+              <button
+                type="button"
+                aria-pressed={geometryMode === "cube"}
+                onClick={() => setGeometryMode("cube")}
+              >
+                Cube
+              </button>
+            </div>
+            <div className="viewer-control-group" aria-label="Reference layer">
+              <p>Layer</p>
+              <button
+                type="button"
+                aria-pressed={activeViewMode === "density"}
+                onClick={() => setViewMode("density")}
+              >
+                Density
+              </button>
+              <button
+                type="button"
+                aria-pressed={activeViewMode === "both"}
+                disabled={!hasParticleAssets}
+                onClick={() => setViewMode("both")}
+              >
+                Both
+              </button>
+              <button
+                type="button"
+                aria-pressed={activeViewMode === "particles"}
+                disabled={!hasParticleAssets}
+                onClick={() => setViewMode("particles")}
+              >
+                Particles
+              </button>
+            </div>
+            <div className="viewer-control-group" aria-label="Camera view">
+              <p>Camera</p>
+              <button
+                className="camera-step"
+                type="button"
+                aria-label="Zoom in"
+                title="Zoom in"
+                onClick={() => requestZoom("in")}
+              >
+                +
+              </button>
+              <button
+                className="camera-step"
+                type="button"
+                aria-label="Zoom out"
+                title="Zoom out"
+                onClick={() => requestZoom("out")}
+              >
+                -
+              </button>
+              <button
+                type="button"
+                aria-label="Reset view"
+                onClick={() => setResetViewToken((token) => token + 1)}
+              >
+                Reset
+              </button>
+            </div>
+          </section>
+
+          <section className="simulation-scale" aria-label="Simulation scale">
+            <p className="eyebrow">Simulation Scale</p>
+            <dl>
+              <div>
+                <dt>Box edge</dt>
+                <dd>{dataset.volume.box_size_mpc_h.toFixed(0)} Mpc/h</dd>
+              </div>
+              <div>
+                <dt>Mesh</dt>
+                <dd>{dataset.volume.dimensions[0]} cubed voxels</dd>
+              </div>
+              <div>
+                <dt>Cell width</dt>
+                <dd>{cellSizeMpcH.toFixed(2)} Mpc/h</dd>
+              </div>
+            </dl>
+          </section>
 
           <div className="divider" />
           <p className="eyebrow">Source</p>
@@ -184,6 +420,7 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
         </aside>
 
         <section
+          ref={viewerStageRef}
           className={`viewer-stage${overlay ? " has-panel" : ""}`}
           aria-label="Interactive density volume"
         >
@@ -191,23 +428,26 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
             <Suspense fallback={<p className="viewer-loading">Preparing viewer...</p>}>
               <DensityVolumeViewer
                 dataset={dataset}
-                frameIndex={frameIndex}
+                frameIndex={currentFrameIndex}
+                nextFrameIndex={nextFrameIndex}
+                particleFrameIndex={selectedFrameIndex}
+                frameBlend={frameBlend}
+                geometryMode={geometryMode}
+                viewMode={activeViewMode}
                 resetViewToken={resetViewToken}
+                zoomRequest={zoomRequest}
               />
             </Suspense>
             <div className="interaction-bar">
               <p className="interaction-hint" id="volume-interaction-help">
-                Drag or arrow keys to orbit / scroll or +/- to zoom
+                Scroll to scrub time / drag or arrow keys to orbit / use zoom controls or +/-
               </p>
-              <button className="reset-view" type="button" onClick={() => setResetViewToken((token) => token + 1)}>
-                Reset view
-              </button>
             </div>
           </div>
           {overlay === "guide" ? (
             <InterpretationPanel
               dataset={dataset}
-              frameIndex={frameIndex}
+              frameIndex={selectedFrameIndex}
               tab={interpretationTab}
               onTabChange={setInterpretationTab}
               onClose={closeOverlay}
@@ -217,23 +457,6 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
             <ExperimentPreviewPanel onClose={closeOverlay} />
           ) : null}
         </section>
-
-        <aside className="frame-rail" aria-label="Reference stages" inert={overlay ? true : undefined}>
-          <p className="eyebrow">Scale factor a</p>
-          <ol>
-            {dataset.frames.map((frame) => (
-              <li
-                aria-current={frame.index === selectedFrame.index ? "step" : undefined}
-                className={frame.index === selectedFrame.index ? "selected" : ""}
-                key={frame.step}
-              >
-                <span />
-                {frame.a.toFixed(3)}
-              </li>
-            ))}
-          </ol>
-          <p className="rail-foot">Early universe to present day</p>
-        </aside>
       </section>
 
       <footer className="timeline-shell" inert={overlay ? true : undefined}>
@@ -257,7 +480,7 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
           type="button"
           aria-label="Previous stage"
           onClick={() =>
-            setFrameIndex((current) => (current - 1 + dataset.frames.length) % dataset.frames.length)
+            jumpToFrame((selectedFrameIndex - 1 + dataset.frames.length) % dataset.frames.length)
           }
         >
           {"<"}
@@ -271,15 +494,17 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
             type="range"
             min={0}
             max={dataset.frames.length - 1}
-            value={frameIndex}
-            onChange={(event) => setFrameIndex(Number(event.target.value))}
+            step={prefersReducedMotion ? 1 : 0.01}
+            value={activeScrubPosition}
+            aria-valuetext={`a = ${selectedFrame.a.toFixed(3)}, z = ${selectedFrame.z.toFixed(2)}`}
+            onChange={(event) => handleTimelineChange(Number(event.target.value))}
           />
         </div>
         <button
           className="stage-step"
           type="button"
           aria-label="Next stage"
-          onClick={() => setFrameIndex((current) => (current + 1) % dataset.frames.length)}
+          onClick={() => jumpToFrame((selectedFrameIndex + 1) % dataset.frames.length)}
         >
           {">"}
         </button>

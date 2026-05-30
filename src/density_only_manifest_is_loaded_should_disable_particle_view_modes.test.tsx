@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { App } from "./App";
 import { parseReferenceDataset } from "./data/referenceDataset";
@@ -10,18 +10,18 @@ const dataset = parseReferenceDataset({
   scenario_id: "gallery_128",
   provenance: {
     source: "lcdm_sim",
-    run_id: "run-66635bfe6a",
+    run_id: "run-density-only",
     validation: { status: "validated" },
   },
   volume: {
     dimensions: [4, 4, 4],
-    box_size_mpc_h: 100,
+    box_size_mpc_h: 32,
     units: "overdensity",
     voxel_encoding: "uint8",
     layout: "C",
     scalar_transform: {
       name: "log1p_overdensity",
-      input_floor: -1,
+      input_floor: -0.999999,
       transformed_min: -2,
       transformed_max: 4,
     },
@@ -39,30 +39,12 @@ const dataset = parseReferenceDataset({
   ],
 });
 
-describe("Reduced motion playback", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("reduced motion is enabled should require manual timeline steps", () => {
-    vi.stubGlobal(
-      "matchMedia",
-      vi.fn().mockReturnValue({
-        matches: true,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      }),
-    );
-
+describe("Density-only reference view", () => {
+  it("density only manifest is loaded should disable particle view modes", () => {
     render(<App initialDataset={dataset} />);
 
-    expect(
-      screen.getByRole("button", { name: /playback unavailable while reduced motion is enabled/i }),
-    ).toBeDisabled();
-    expect(screen.getByRole("slider", { name: /cosmic time frame/i })).toHaveAttribute(
-      "step",
-      "1",
-    );
-    expect(screen.getByText(/manual stages only/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^density$/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /both/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /particles/i })).toBeDisabled();
   });
 });
