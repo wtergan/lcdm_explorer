@@ -25,3 +25,22 @@ export function decodeParticlePositions(bytes: ArrayBuffer, particleCount: numbe
   }
   return positions;
 }
+
+/**
+ * Keep decoded renderer-local particles inside the sphere presentation mask.
+ *
+ * The exported positions remain untouched. This derives a display-only subset
+ * so particle and density layers describe the same geometry mode.
+ */
+export function clipParticlePositionsToSphere(positions: Float32Array) {
+  const clipped: number[] = [];
+  for (let index = 0; index < positions.length; index += 3) {
+    const x = positions[index];
+    const y = positions[index + 1];
+    const z = positions[index + 2];
+    if (x * x + y * y + z * z <= 0.25) {
+      clipped.push(x, y, z);
+    }
+  }
+  return new Float32Array(clipped);
+}

@@ -25,7 +25,12 @@ import {
   type InterpretationTab,
 } from "./explore/InterpretationPanel";
 import { ExperimentPreviewPanel } from "./experiment/ExperimentPreviewPanel";
-import type { GeometryMode, ViewMode } from "./viewer/DensityVolumeViewer";
+import type {
+  GeometryMode,
+  ViewMode,
+  ZoomDirection,
+  ZoomRequest,
+} from "./viewer/DensityVolumeViewer";
 const DensityVolumeViewer = lazy(async () => {
   const module = await import("./viewer/DensityVolumeViewer");
   return { default: module.DensityVolumeViewer };
@@ -36,6 +41,7 @@ type DatasetState =
   | { status: "ready"; dataset: ReferenceDataset }
   | { status: "error"; message: string };
 type Overlay = "guide" | "experiment" | null;
+type Theme = "dark" | "light";
 
 export interface AppProps {
   initialDataset?: ReferenceDataset;
@@ -85,6 +91,11 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
   const [interpretationTab, setInterpretationTab] = useState<InterpretationTab>("guide");
   const [geometryMode, setGeometryMode] = useState<GeometryMode>("sphere");
   const [viewMode, setViewMode] = useState<ViewMode>("density");
+  const [theme, setTheme] = useState<Theme>("dark");
+  const [zoomRequest, setZoomRequest] = useState<ZoomRequest>({
+    direction: "in",
+    token: 0,
+  });
   const guideTriggerRef = useRef<HTMLButtonElement>(null);
   const experimentTriggerRef = useRef<HTMLButtonElement>(null);
   const viewerStageRef = useRef<HTMLElement>(null);
@@ -100,6 +111,8 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
     ? 0
     : activeScrubPosition - currentFrameIndex;
   const selectedFrame = dataset.frames[selectedFrameIndex];
+  const cellSizeMpcH =
+    dataset.volume.box_size_mpc_h / dataset.volume.dimensions[0];
 
   const closeOverlay = useCallback(() => {
     const closing = overlay;
@@ -155,6 +168,13 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
     [maxFrameIndex, overlay],
   );
 
+  const requestZoom = useCallback((direction: ZoomDirection) => {
+    setZoomRequest((current) => ({
+      direction,
+      token: current.token + 1,
+    }));
+  }, []);
+
   useEffect(() => {
     const viewerStage = viewerStageRef.current;
     if (!viewerStage) {
@@ -198,7 +218,7 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
   }, [closeOverlay, overlay]);
 
   return (
-    <main className="exhibit-shell">
+    <main className="exhibit-shell" data-theme={theme}>
       <a className="skip-link" href="#explore-content" tabIndex={overlay ? -1 : undefined}>
         Skip to viewer
       </a>
@@ -222,10 +242,30 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
             Experiment <span className="later">preview</span>
           </button>
         </nav>
-        <p className="validation-badge">
-          <span aria-hidden="true" />
-          Validated reference simulation
-        </p>
+        <div className="topbar-actions">
+          <div className="theme-switch" role="group" aria-label="Color theme">
+            <button
+              type="button"
+              aria-label="Use dark mode"
+              aria-pressed={theme === "dark"}
+              onClick={() => setTheme("dark")}
+            >
+              Dark
+            </button>
+            <button
+              type="button"
+              aria-label="Use light mode"
+              aria-pressed={theme === "light"}
+              onClick={() => setTheme("light")}
+            >
+              Light
+            </button>
+          </div>
+          <p className="validation-badge">
+            <span aria-hidden="true" />
+            Validated reference simulation
+          </p>
+        </div>
       </header>
 
       <section
@@ -267,6 +307,99 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
             <p className="rail-foot">Even visual steps, true saved-frame labels.</p>
           </section>
 
+          <section className="rail-control-deck" aria-label="Viewer presentation controls">
+            <p className="eyebrow">Presentation</p>
+            <div className="viewer-control-group" aria-label="Volume geometry">
+              <p>Geometry</p>
+              <button
+                type="button"
+                aria-pressed={geometryMode === "sphere"}
+                onClick={() => setGeometryMode("sphere")}
+              >
+                Sphere
+              </button>
+              <button
+                type="button"
+                aria-pressed={geometryMode === "cube"}
+                onClick={() => setGeometryMode("cube")}
+              >
+                Cube
+              </button>
+            </div>
+            <div className="viewer-control-group" aria-label="Reference layer">
+              <p>Layer</p>
+              <button
+                type="button"
+                aria-pressed={activeViewMode === "density"}
+                onClick={() => setViewMode("density")}
+              >
+                Density
+              </button>
+              <button
+                type="button"
+                aria-pressed={activeViewMode === "both"}
+                disabled={!hasParticleAssets}
+                onClick={() => setViewMode("both")}
+              >
+                Both
+              </button>
+              <button
+                type="button"
+                aria-pressed={activeViewMode === "particles"}
+                disabled={!hasParticleAssets}
+                onClick={() => setViewMode("particles")}
+              >
+                Particles
+              </button>
+            </div>
+            <div className="viewer-control-group" aria-label="Camera view">
+              <p>Camera</p>
+              <button
+                className="camera-step"
+                type="button"
+                aria-label="Zoom in"
+                title="Zoom in"
+                onClick={() => requestZoom("in")}
+              >
+                +
+              </button>
+              <button
+                className="camera-step"
+                type="button"
+                aria-label="Zoom out"
+                title="Zoom out"
+                onClick={() => requestZoom("out")}
+              >
+                -
+              </button>
+              <button
+                type="button"
+                aria-label="Reset view"
+                onClick={() => setResetViewToken((token) => token + 1)}
+              >
+                Reset
+              </button>
+            </div>
+          </section>
+
+          <section className="simulation-scale" aria-label="Simulation scale">
+            <p className="eyebrow">Simulation Scale</p>
+            <dl>
+              <div>
+                <dt>Box edge</dt>
+                <dd>{dataset.volume.box_size_mpc_h.toFixed(0)} Mpc/h</dd>
+              </div>
+              <div>
+                <dt>Mesh</dt>
+                <dd>{dataset.volume.dimensions[0]} cubed voxels</dd>
+              </div>
+              <div>
+                <dt>Cell width</dt>
+                <dd>{cellSizeMpcH.toFixed(2)} Mpc/h</dd>
+              </div>
+            </dl>
+          </section>
+
           <div className="divider" />
           <p className="eyebrow">Source</p>
           <p className="provenance">Exported from lcdm_sim</p>
@@ -292,51 +425,6 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
           aria-label="Interactive density volume"
         >
           <div className="viewer-content" inert={overlay ? true : undefined}>
-            <div className="viewer-control-deck" aria-label="Viewer presentation controls">
-              <div className="viewer-control-group" aria-label="Volume geometry">
-                <p>Geometry</p>
-                <button
-                  type="button"
-                  aria-pressed={geometryMode === "sphere"}
-                  onClick={() => setGeometryMode("sphere")}
-                >
-                  Sphere
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={geometryMode === "cube"}
-                  onClick={() => setGeometryMode("cube")}
-                >
-                  Cube
-                </button>
-              </div>
-              <div className="viewer-control-group" aria-label="Reference layer">
-                <p>Layer</p>
-                <button
-                  type="button"
-                  aria-pressed={activeViewMode === "density"}
-                  onClick={() => setViewMode("density")}
-                >
-                  Density
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={activeViewMode === "both"}
-                  disabled={!hasParticleAssets}
-                  onClick={() => setViewMode("both")}
-                >
-                  Both
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={activeViewMode === "particles"}
-                  disabled={!hasParticleAssets}
-                  onClick={() => setViewMode("particles")}
-                >
-                  Particles
-                </button>
-              </div>
-            </div>
             <Suspense fallback={<p className="viewer-loading">Preparing viewer...</p>}>
               <DensityVolumeViewer
                 dataset={dataset}
@@ -347,15 +435,13 @@ function ReferenceExhibit({ dataset }: { dataset: ReferenceDataset }) {
                 geometryMode={geometryMode}
                 viewMode={activeViewMode}
                 resetViewToken={resetViewToken}
+                zoomRequest={zoomRequest}
               />
             </Suspense>
             <div className="interaction-bar">
               <p className="interaction-hint" id="volume-interaction-help">
-                Scroll over viewer to scrub time / drag or arrow keys to orbit / +/- to zoom
+                Scroll to scrub time / drag or arrow keys to orbit / use zoom controls or +/-
               </p>
-              <button className="reset-view" type="button" onClick={() => setResetViewToken((token) => token + 1)}>
-                Reset view
-              </button>
             </div>
           </div>
           {overlay === "guide" ? (

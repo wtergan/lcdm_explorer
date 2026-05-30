@@ -26,6 +26,7 @@ import {
   RedFormat,
   Scene,
   ShaderMaterial,
+  SphereGeometry,
   Spherical,
   UnsignedByteType,
   Vector3,
@@ -37,10 +38,18 @@ import {
   datasetHasParticles,
   type ReferenceDataset,
 } from "../data/referenceDataset";
-import { decodeParticlePositions } from "./particlePositions";
+import {
+  clipParticlePositionsToSphere,
+  decodeParticlePositions,
+} from "./particlePositions";
 
 export type GeometryMode = "sphere" | "cube";
 export type ViewMode = "density" | "both" | "particles";
+export type ZoomDirection = "in" | "out";
+export type ZoomRequest = {
+  direction: ZoomDirection;
+  token: number;
+};
 
 export interface DensityVolumeViewerProps {
   dataset: ReferenceDataset;
@@ -51,6 +60,7 @@ export interface DensityVolumeViewerProps {
   geometryMode: GeometryMode;
   viewMode: ViewMode;
   resetViewToken: number;
+  zoomRequest: ZoomRequest;
 }
 
 type ViewerStatus = "starting" | "loading" | "ready" | "unsupported" | "error";
@@ -178,9 +188,20 @@ function disposeParticleLayer(layer: Points | null) {
   (layer.material as PointsMaterial).dispose();
 }
 
-function createParticleLayer(positions: Float32Array, viewMode: ViewMode) {
+function createParticleLayer(
+  positions: Float32Array,
+  viewMode: ViewMode,
+  geometryMode: GeometryMode,
+) {
+  const visiblePositions =
+    geometryMode === "sphere"
+      ? clipParticlePositionsToSphere(positions)
+      : positions;
   const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+  geometry.setAttribute(
+    "position",
+    new Float32BufferAttribute(visiblePositions, 3),
+  );
   const material = new PointsMaterial({
     blending: AdditiveBlending,
     color: 0xeafc49,
@@ -193,6 +214,22 @@ function createParticleLayer(positions: Float32Array, viewMode: ViewMode) {
   return new Points(geometry, material);
 }
 
+function zoomCamera(
+  camera: PerspectiveCamera,
+  controls: OrbitControls,
+  direction: ZoomDirection,
+) {
+  const offset = camera.position.clone().sub(controls.target);
+  const spherical = new Spherical().setFromVector3(offset);
+  spherical.radius =
+    direction === "in"
+      ? Math.max(controls.minDistance, spherical.radius * 0.9)
+      : Math.min(controls.maxDistance, spherical.radius * 1.1);
+  camera.position.copy(controls.target).add(new Vector3().setFromSpherical(spherical));
+  camera.lookAt(controls.target);
+  controls.update();
+}
+
 export function DensityVolumeViewer({
   dataset,
   frameIndex,
@@ -202,6 +239,7 @@ export function DensityVolumeViewer({
   geometryMode,
   viewMode,
   resetViewToken,
+  zoomRequest,
 }: DensityVolumeViewerProps) {
   const hasWebGL2Api = typeof WebGL2RenderingContext !== "undefined";
   const containerRef = useRef<HTMLDivElement>(null);
@@ -212,6 +250,7 @@ export function DensityVolumeViewer({
   const outlineRef = useRef<LineSegments | null>(null);
   const particleLayerRef = useRef<Points | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const cameraRef = useRef<PerspectiveCamera | null>(null);
   const renderOptionsRef = useRef<RenderOptions>({
     frameBlend,
     geometryMode,
@@ -253,6 +292,7 @@ export function DensityVolumeViewer({
     sceneRef.current = scene;
     const camera = new PerspectiveCamera(43, 1, 0.01, 100);
     camera.position.set(1.65, 1.22, 1.72);
+    cameraRef.current = camera;
 
     const material = new ShaderMaterial({
       glslVersion: GLSL3,
@@ -271,13 +311,14 @@ export function DensityVolumeViewer({
       },
     });
     materialRef.current = material;
-    const geometry = new BoxGeometry(1, 1, 1);
-    const volume = new Mesh(geometry, material);
+    const boxGeometry = new BoxGeometry(1, 1, 1);
+    const sphereGeometry = new SphereGeometry(0.5, 64, 48);
+    const volume = new Mesh<BufferGeometry>(sphereGeometry, material);
     volumeRef.current = volume;
     scene.add(volume);
 
     const outline = new LineSegments(
-      new EdgesGeometry(geometry),
+      new EdgesGeometry(boxGeometry),
       new LineBasicMaterial({
         color: 0x8b9b9a,
         transparent: true,
@@ -293,7 +334,7 @@ export function DensityVolumeViewer({
     renderer.domElement.tabIndex = 0;
     renderer.domElement.setAttribute(
       "aria-label",
-      "Interactive reference volume. Scroll over the viewer scrubs time; arrow keys orbit; plus and minus keys zoom.",
+      "Interactive reference volume. Scroll over the viewer scrubs time; drag or arrow keys orbit; zoom controls and plus or minus keys adjust distance.",
     );
     renderer.domElement.setAttribute("aria-describedby", "volume-interaction-help");
     container.appendChild(renderer.domElement);
@@ -327,12 +368,12 @@ export function DensityVolumeViewer({
           break;
         case "+":
         case "=":
-          spherical.radius = Math.max(controls.minDistance, spherical.radius * 0.9);
-          break;
+          zoomCamera(camera, controls, "in");
+          return;
         case "-":
         case "_":
-          spherical.radius = Math.min(controls.maxDistance, spherical.radius * 1.1);
-          break;
+          zoomCamera(camera, controls, "out");
+          return;
         default:
           handled = false;
       }
@@ -367,9 +408,12 @@ export function DensityVolumeViewer({
       material.uniforms.densityVisibility.value =
         options.viewMode === "both" ? 0.68 : options.viewMode === "density" ? 1 : 0;
       material.uniforms.localCameraPosition.value.copy(camera.position).addScalar(0.5);
+      volume.geometry =
+        options.geometryMode === "sphere" ? sphereGeometry : boxGeometry;
       volume.visible = options.viewMode !== "particles";
       const outlineMaterial = outline.material as LineBasicMaterial;
-      outlineMaterial.opacity = options.geometryMode === "sphere" ? 0.36 : 0.68;
+      outlineMaterial.opacity = 0.68;
+      outline.visible = options.geometryMode === "cube";
       const particleLayer = particleLayerRef.current;
       if (particleLayer) {
         particleLayer.visible = options.viewMode !== "density";
@@ -387,6 +431,7 @@ export function DensityVolumeViewer({
       observer.disconnect();
       controls.dispose();
       controlsRef.current = null;
+      cameraRef.current = null;
       renderer.domElement.removeEventListener("keydown", adjustCamera);
       disposeDensityTextures(densityTextures);
       if (particleLayerRef.current) {
@@ -395,7 +440,8 @@ export function DensityVolumeViewer({
       disposeParticleLayer(particleLayerRef.current);
       particleLayerRef.current = null;
       material.dispose();
-      geometry.dispose();
+      boxGeometry.dispose();
+      sphereGeometry.dispose();
       (outline.geometry as EdgesGeometry).dispose();
       (outline.material as LineBasicMaterial).dispose();
       renderer.dispose();
@@ -410,6 +456,18 @@ export function DensityVolumeViewer({
   useEffect(() => {
     controlsRef.current?.reset();
   }, [resetViewToken]);
+
+  useEffect(() => {
+    if (zoomRequest.token === 0) {
+      return;
+    }
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    if (!camera || !controls) {
+      return;
+    }
+    zoomCamera(camera, controls, zoomRequest.direction);
+  }, [zoomRequest]);
 
   useEffect(() => {
     renderOptionsRef.current = { frameBlend, geometryMode, viewMode };
@@ -485,6 +543,7 @@ export function DensityVolumeViewer({
         layer = createParticleLayer(
           decodeParticlePositions(bytes, frame.particles.particle_count),
           viewMode,
+          geometryMode,
         );
         particleLayerRef.current = layer;
         scene.add(layer);
@@ -506,7 +565,7 @@ export function DensityVolumeViewer({
         particleLayerRef.current = null;
       }
     };
-  }, [dataset, particleFrameIndex, viewMode]);
+  }, [dataset, geometryMode, particleFrameIndex, viewMode]);
 
   return (
     <div className="volume-viewer" ref={containerRef}>
